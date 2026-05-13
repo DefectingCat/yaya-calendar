@@ -16,6 +16,7 @@
 import type { Day } from "date-fns";
 import { Platform } from "react-native";
 import { getLunarInfoBatch, getStatutoryHolidaySetForMonth } from "../domain/lunar";
+import type { LunarDayInfo } from "../domain/types";
 import {
   getLunarInfoBatchNative,
   getStatutoryHolidaySetNative,
@@ -23,15 +24,6 @@ import {
 } from "./lunarNative";
 
 const isWeb = Platform.OS === "web";
-
-/** 农历信息（可序列化版本） */
-export interface SerializableLunarInfo {
-  lunarDay: string;
-  solarTerm?: string;
-  holiday?: string;
-  isHoliday: boolean;
-  isSolarTerm: boolean;
-}
 
 /**
  * 计算整月的农历信息
@@ -42,19 +34,13 @@ export const getLunarInfoBatchAsync = (
   year: number,
   month: number,
   weekStartsOn: Day = 1
-): Promise<Map<string, SerializableLunarInfo>> => {
-  if (isWeb) {
-    const batch = getLunarInfoBatch(year, month);
-    return Promise.resolve(new Map(batch) as Map<string, SerializableLunarInfo>);
-  }
-
-  if (isNativeModuleAvailable()) {
+): Promise<Map<string, LunarDayInfo>> => {
+  if (!isWeb && isNativeModuleAvailable()) {
     return getLunarInfoBatchNative(year, month, weekStartsOn);
   }
 
-  // fallback
   const batch = getLunarInfoBatch(year, month);
-  return Promise.resolve(new Map(batch) as Map<string, SerializableLunarInfo>);
+  return Promise.resolve(batch);
 };
 
 /**
@@ -66,16 +52,10 @@ export const getStatutoryHolidaySetForMonthAsync = (
   year: number,
   month: number
 ): Promise<Set<string>> => {
-  if (isWeb) {
-    const holidaySet = getStatutoryHolidaySetForMonth(year, month);
-    return Promise.resolve(new Set(holidaySet));
-  }
-
-  if (isNativeModuleAvailable()) {
+  if (!isWeb && isNativeModuleAvailable()) {
     return getStatutoryHolidaySetNative(year, month);
   }
 
-  // fallback
   const holidaySet = getStatutoryHolidaySetForMonth(year, month);
-  return Promise.resolve(new Set(holidaySet));
+  return Promise.resolve(holidaySet);
 };

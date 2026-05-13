@@ -5,6 +5,7 @@
  */
 
 import { NativeModules, Platform } from "react-native";
+import type { LunarDayInfo } from "../domain/types";
 
 const { LunarModule } = NativeModules;
 
@@ -23,14 +24,6 @@ export interface NativeLunarInfo {
   shengXiao: string;
   solarTerm: string | null;
   festivals: string; // JSON 数组字符串
-  isHoliday: boolean;
-  isSolarTerm: boolean;
-}
-
-export interface NativeLunarDayData {
-  lunarDay: string;
-  solarTerm?: string;
-  holiday?: string;
   isHoliday: boolean;
   isSolarTerm: boolean;
 }
@@ -67,13 +60,13 @@ export const getLunarInfoBatchNative = async (
   year: number,
   month: number,
   weekStartsOn: number = 1
-): Promise<Map<string, import("./lunarWorker").SerializableLunarInfo>> => {
+): Promise<Map<string, LunarDayInfo>> => {
   if (!LunarModule) {
     throw new Error("LunarModule not available");
   }
 
   const result = await LunarModule.getLunarInfoBatch(year, month + 1, weekStartsOn);
-  const map = new Map<string, import("./lunarWorker").SerializableLunarInfo>();
+  const map = new Map<string, LunarDayInfo>();
 
   for (const [key, value] of Object.entries(result)) {
     const v = value as {

@@ -15,7 +15,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { getLunarInfo } from "../../domain/lunar";
-import type { Event } from "../../domain/types";
+import type { Event, LunarDayInfo } from "../../domain/types";
 import { useEventStore, useViewStore } from "../../stores/eventStore";
 import { useTheme } from "../../stores/themeStore";
 import { calculateSingleRowHeight } from "../../utils/calendar";
@@ -26,15 +26,6 @@ const POP_ANIMATION_CONFIG = { damping: 18, stiffness: 200 };
 
 type Fidelity = "full" | "skeleton";
 
-/** 农历信息缓存结构 */
-interface LunarInfo {
-  lunarDay: string;
-  solarTerm?: string;
-  holiday?: string;
-  isHoliday: boolean;
-  isSolarTerm: boolean;
-}
-
 interface MonthGridProps {
   year: number;
   month: number; // 0-indexed（0 = 一月）
@@ -42,7 +33,7 @@ interface MonthGridProps {
   targetRowIndex?: number; // 目标行索引（用于折叠动画）
   foldProgress?: SharedValue<number>; // 折叠进度（0-1）
   screenWidth?: number; // 屏幕宽度（用于计算折叠高度）
-  lunarInfoMap?: Map<string, LunarInfo>; // 预计算的农历信息
+  lunarInfoMap?: Map<string, LunarDayInfo>; // 预计算的农历信息
   eventsMap?: Map<string, Event[]>; // 预计算的事件数据
 }
 
@@ -55,7 +46,7 @@ interface AnimatedDayCellProps {
   fidelity: Fidelity;
   isDimmed?: boolean; // 是否淡化显示（非当月日期）
   onPress?: () => void;
-  lunarInfo?: LunarInfo; // 预计算的农历信息
+  lunarInfo?: LunarDayInfo; // 预计算的农历信息
   events?: Event[]; // 预计算的事件数据
 }
 

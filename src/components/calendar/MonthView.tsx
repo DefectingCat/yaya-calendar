@@ -18,15 +18,23 @@ import { Dimensions, StyleSheet, Text, useWindowDimensions, View } from "react-n
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   cancelAnimation,
-  Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import {
+  EASE_OUT_CUBIC,
+  FOLD_DISTANCE_THRESHOLD_RATIO,
+  FOLD_VELOCITY_THRESHOLD,
+  SPRING_CONFIG,
+  SWIPE_DISTANCE_THRESHOLD_RATIO,
+  SWIPE_VELOCITY_THRESHOLD,
+} from "../../constants/interaction";
 import { getLunarInfoBatch } from "../../domain/lunar";
-import { getLunarInfoBatchAsync, type SerializableLunarInfo } from "../../services/lunarWorker";
+import type { LunarDayInfo } from "../../domain/types";
+import { getLunarInfoBatchAsync } from "../../services/lunarWorker";
 import { useEventStore, useViewStore } from "../../stores/eventStore";
 import { useTheme } from "../../stores/themeStore";
 import {
@@ -40,18 +48,15 @@ import MonthGrid from "./MonthGrid";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SCREEN_HEIGHT = Dimensions.get("window").height;
-const SWIPE_VELOCITY_THRESHOLD = 500; // 滑动速度阈值（px/s）
-const SWIPE_DISTANCE_THRESHOLD = SCREEN_WIDTH * 0.3; // 滑动距离阈值
-const SPRING_CONFIG = { damping: 20, stiffness: 100 };
+const SWIPE_DISTANCE_THRESHOLD = SCREEN_WIDTH * SWIPE_DISTANCE_THRESHOLD_RATIO;
+const FOLD_DISTANCE_THRESHOLD = SCREEN_HEIGHT * FOLD_DISTANCE_THRESHOLD_RATIO;
 
 const EMPTY_LUNAR_MAP: ReadonlyMap<string, never> = new Map<string, never>();
 const EMPTY_EVENTS_MAP: ReadonlyMap<string, never> = new Map<string, never>();
 // 异步加载的农历信息类型（来自 lunarWorker）
-type LunarInfoMap = Map<string, SerializableLunarInfo>;
+type LunarInfoMap = Map<string, LunarDayInfo>;
 
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
-const FOLD_VELOCITY_THRESHOLD = 300; // 折叠速度阈值
-const FOLD_DISTANCE_THRESHOLD = SCREEN_HEIGHT * 0.05; // 折叠距离阈值
 
 /** Slot-based 三屏面板数据 */
 interface SlotData {
@@ -225,30 +230,16 @@ export const MonthView: React.FC = () => {
     [displayMonth, getEventsForMonth]
   );
 
-  // Ref-based cache：同月份返回同一 Map 引用，让 React.memo 跳过重渲染
-  const lunarCacheRef = useRef(new Map<string, Map<string, SerializableLunarInfo>>());
-  const eventsCacheRef = useRef(new Map<string, ReturnType<typeof getEventsForMonth>>());
+  // 展开状态：每个 slot 的农历和事件
+  const slotLunarMaps = useMemo(
+    () => slots.map((slot) => getLunarInfoBatch(slot.year, slot.month)),
+    [slots]
+  );
 
-  // 展开状态：每个 slot 的农历和事件（带缓存）
-  const slotLunarMaps = useMemo(() => {
-    return slots.map((slot) => {
-      const key = `${slot.year}-${slot.month}`;
-      if (!lunarCacheRef.current.has(key)) {
-        lunarCacheRef.current.set(key, getLunarInfoBatch(slot.year, slot.month));
-      }
-      return lunarCacheRef.current.get(key)!;
-    });
-  }, [slots]);
-
-  const slotEventsMaps = useMemo(() => {
-    return slots.map((slot) => {
-      const key = `${slot.year}-${slot.month}`;
-      if (!eventsCacheRef.current.has(key)) {
-        eventsCacheRef.current.set(key, getEventsForMonth(slot.year, slot.month));
-      }
-      return eventsCacheRef.current.get(key)!;
-    });
-  }, [slots, getEventsForMonth]);
+  const slotEventsMaps = useMemo(
+    () => slots.map((slot) => getEventsForMonth(slot.year, slot.month)),
+    [slots, getEventsForMonth]
+  );
 
   // 折叠状态下的农历和事件预计算
   // prevWeek/nextWeek 使用异步计算（worklet 线程）
@@ -343,67 +334,62 @@ export const MonthView: React.FC = () => {
   //       由 panel 滑动动画完成（旧 next panel 滑到屏幕中心）
   //   阶段 2（panel 动画完成 callback）：写 displayMonth，触发 useLayoutEffect
   //     的 swipe 重映射分支，把 translateX 重置为 0
-  const startSwipeNext = useCallback(() => {
-    isSwipingRef.current = true;
-    const [year, month] = displayMonthStr.split("-").map(Number);
-    const currentDisplayMonth = new Date(year, month - 1, 1);
-    const newMonth = addMonths(currentDisplayMonth, 1);
-    const newMonthStr = `${newMonth.getFullYear()}-${String(newMonth.getMonth() + 1).padStart(2, "0")}-01`;
-    setHasNavigatedMonth(true);
-    const today = new Date();
-    const targetDate = isSameMonth(newMonth, today)
-      ? today.toISOString().split("T")[0]
-      : newMonthStr;
-    setSelectedDate(targetDate);
-  }, [displayMonthStr, setHasNavigatedMonth, setSelectedDate]);
+  const startSwipe = useCallback(
+    (direction: "next" | "prev") => {
+      isSwipingRef.current = true;
+      const [year, month] = displayMonthStr.split("-").map(Number);
+      const currentDisplayMonth = new Date(year, month - 1, 1);
+      const newMonth =
+        direction === "next"
+          ? addMonths(currentDisplayMonth, 1)
+          : subMonths(currentDisplayMonth, 1);
+      const newMonthStr = `${newMonth.getFullYear()}-${String(newMonth.getMonth() + 1).padStart(2, "0")}-01`;
+      setHasNavigatedMonth(true);
+      const today = new Date();
+      const targetDate = isSameMonth(newMonth, today)
+        ? today.toISOString().split("T")[0]
+        : newMonthStr;
+      setSelectedDate(targetDate);
+    },
+    [displayMonthStr, setHasNavigatedMonth, setSelectedDate]
+  );
 
-  const startSwipePrev = useCallback(() => {
-    isSwipingRef.current = true;
-    const [year, month] = displayMonthStr.split("-").map(Number);
-    const currentDisplayMonth = new Date(year, month - 1, 1);
-    const newMonth = subMonths(currentDisplayMonth, 1);
-    const newMonthStr = `${newMonth.getFullYear()}-${String(newMonth.getMonth() + 1).padStart(2, "0")}-01`;
-    setHasNavigatedMonth(true);
-    const today = new Date();
-    const targetDate = isSameMonth(newMonth, today)
-      ? today.toISOString().split("T")[0]
-      : newMonthStr;
-    setSelectedDate(targetDate);
-  }, [displayMonthStr, setHasNavigatedMonth, setSelectedDate]);
+  const commitSwipe = useCallback(
+    (direction: "next" | "prev") => {
+      const [year, month] = displayMonthStr.split("-").map(Number);
+      const currentDisplayMonth = new Date(year, month - 1, 1);
+      const newMonth =
+        direction === "next"
+          ? addMonths(currentDisplayMonth, 1)
+          : subMonths(currentDisplayMonth, 1);
+      const newMonthStr = `${newMonth.getFullYear()}-${String(newMonth.getMonth() + 1).padStart(2, "0")}-01`;
 
-  const commitSwipeNext = useCallback(() => {
-    const [year, month] = displayMonthStr.split("-").map(Number);
-    const currentDisplayMonth = new Date(year, month - 1, 1);
-    const newMonth = addMonths(currentDisplayMonth, 1);
-    const newMonthStr = `${newMonth.getFullYear()}-${String(newMonth.getMonth() + 1).padStart(2, "0")}-01`;
+      skipSlotResetRef.current = true;
+      setSlots((prev) => {
+        if (direction === "next") {
+          const oldNext = prev[2];
+          const newNextDate = addMonths(new Date(oldNext.year, oldNext.month, 1), 1);
+          return [
+            prev[1],
+            prev[2],
+            { year: newNextDate.getFullYear(), month: newNextDate.getMonth() },
+          ];
+        } else {
+          const oldPrev = prev[0];
+          const newPrevDate = subMonths(new Date(oldPrev.year, oldPrev.month, 1), 1);
+          return [
+            { year: newPrevDate.getFullYear(), month: newPrevDate.getMonth() },
+            prev[0],
+            prev[1],
+          ];
+        }
+      });
 
-    skipSlotResetRef.current = true;
-    setSlots((prev) => {
-      const oldNext = prev[2];
-      const newNextDate = addMonths(new Date(oldNext.year, oldNext.month, 1), 1);
-      return [prev[1], prev[2], { year: newNextDate.getFullYear(), month: newNextDate.getMonth() }];
-    });
-
-    swipeDirectionRef.current = "next";
-    setDisplayMonth(newMonthStr);
-  }, [displayMonthStr, setDisplayMonth]);
-
-  const commitSwipePrev = useCallback(() => {
-    const [year, month] = displayMonthStr.split("-").map(Number);
-    const currentDisplayMonth = new Date(year, month - 1, 1);
-    const newMonth = subMonths(currentDisplayMonth, 1);
-    const newMonthStr = `${newMonth.getFullYear()}-${String(newMonth.getMonth() + 1).padStart(2, "0")}-01`;
-
-    skipSlotResetRef.current = true;
-    setSlots((prev) => {
-      const oldPrev = prev[0];
-      const newPrevDate = subMonths(new Date(oldPrev.year, oldPrev.month, 1), 1);
-      return [{ year: newPrevDate.getFullYear(), month: newPrevDate.getMonth() }, prev[0], prev[1]];
-    });
-
-    swipeDirectionRef.current = "prev";
-    setDisplayMonth(newMonthStr);
-  }, [displayMonthStr, setDisplayMonth]);
+      swipeDirectionRef.current = direction;
+      setDisplayMonth(newMonthStr);
+    },
+    [displayMonthStr, setDisplayMonth]
+  );
 
   const toggleCollapse = useCallback(() => {
     setIsCollapsed((prev) => !prev);
@@ -489,58 +475,40 @@ export const MonthView: React.FC = () => {
   useLayoutEffect(() => {
     calendarHeight.value = withTiming(isCollapsed ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT, {
       duration: 250,
-      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      easing: EASE_OUT_CUBIC,
     });
     foldProgress.value = withTiming(isCollapsed ? 1 : 0, {
       duration: 250,
-      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      easing: EASE_OUT_CUBIC,
     });
   }, [isCollapsed, EXPANDED_HEIGHT, COLLAPSED_HEIGHT, calendarHeight, foldProgress]);
 
   // 切换周的回调（折叠状态下使用）
-  const goToNextWeekJS = useCallback(() => {
-    translateX.value = 0;
-    const currentDate = new Date(selectedDate);
-    const nextWeek = addDays(currentDate, 7);
+  const goToWeekJS = useCallback(
+    (direction: "next" | "prev") => {
+      translateX.value = 0;
+      const currentDate = new Date(selectedDate);
+      const targetWeek = direction === "next" ? addDays(currentDate, 7) : subDays(currentDate, 7);
 
-    // 切换周时同步选中日期：如果新周包含今天则选中今天，否则选中周一
-    const today = new Date();
-    const weekStart = startOfWeek(nextWeek, { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(nextWeek, { weekStartsOn: 1 });
-    const targetDate =
-      today >= weekStart && today <= weekEnd
-        ? format(today, "yyyy-MM-dd")
-        : format(weekStart, "yyyy-MM-dd");
+      // 切换周时同步选中日期：如果新周包含今天则选中今天，否则选中周一
+      const today = new Date();
+      const weekStart = startOfWeek(targetWeek, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(targetWeek, { weekStartsOn: 1 });
+      const targetDate =
+        today >= weekStart && today <= weekEnd
+          ? format(today, "yyyy-MM-dd")
+          : format(weekStart, "yyyy-MM-dd");
 
-    if (isSameMonth(nextWeek, displayMonth)) {
-      // 同月：只改 selectedDate（displayMonth 不变）
-      setSelectedDate(targetDate);
-    } else {
-      // 跨月：一次性改 selectedDate + displayMonth
-      setSelectedDateAndMonth(targetDate);
-    }
-  }, [selectedDate, displayMonth, setSelectedDate, setSelectedDateAndMonth, translateX]);
-
-  const goToPrevWeekJS = useCallback(() => {
-    translateX.value = 0;
-    const currentDate = new Date(selectedDate);
-    const prevWeek = subDays(currentDate, 7);
-
-    // 切换周时同步选中日期：如果新周包含今天则选中今天，否则选中周一
-    const today = new Date();
-    const weekStart = startOfWeek(prevWeek, { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(prevWeek, { weekStartsOn: 1 });
-    const targetDate =
-      today >= weekStart && today <= weekEnd
-        ? format(today, "yyyy-MM-dd")
-        : format(weekStart, "yyyy-MM-dd");
-
-    if (isSameMonth(prevWeek, displayMonth)) {
-      setSelectedDate(targetDate);
-    } else {
-      setSelectedDateAndMonth(targetDate);
-    }
-  }, [selectedDate, displayMonth, setSelectedDate, setSelectedDateAndMonth, translateX]);
+      if (isSameMonth(targetWeek, displayMonth)) {
+        // 同月：只改 selectedDate（displayMonth 不变）
+        setSelectedDate(targetDate);
+      } else {
+        // 跨月：一次性改 selectedDate + displayMonth
+        setSelectedDateAndMonth(targetDate);
+      }
+    },
+    [selectedDate, displayMonth, setSelectedDate, setSelectedDateAndMonth, translateX]
+  );
 
   const panGesture = Gesture.Pan()
     .activeOffsetX([-10, 10])
@@ -578,12 +546,12 @@ export const MonthView: React.FC = () => {
         if (shouldSwipeLeft) {
           translateX.value = withTiming(-SCREEN_WIDTH, { duration: 150 });
           setTimeout(() => {
-            runOnJS(goToNextWeekJS)();
+            runOnJS(goToWeekJS)("next");
           }, 150);
         } else if (shouldSwipeRight) {
           translateX.value = withTiming(SCREEN_WIDTH, { duration: 150 });
           setTimeout(() => {
-            runOnJS(goToPrevWeekJS)();
+            runOnJS(goToWeekJS)("prev");
           }, 150);
         } else {
           // 取消滑动：回弹到当前位置
@@ -602,38 +570,38 @@ export const MonthView: React.FC = () => {
       //     用户看到的内容连续；MonthGrid 重渲染开销不影响用户感知
       if (shouldSwipeLeft) {
         isAnimating.value = true;
-        runOnJS(startSwipeNext)();
+        runOnJS(startSwipe)("next");
         calendarHeight.value = withTiming(nextHeight.value, {
           duration: 200,
-          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+          easing: EASE_OUT_CUBIC,
         });
         translateX.value = withTiming(
           -SCREEN_WIDTH,
           {
             duration: 200,
-            easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+            easing: EASE_OUT_CUBIC,
           },
           (finished) => {
             "worklet";
-            if (finished) runOnJS(commitSwipeNext)();
+            if (finished) runOnJS(commitSwipe)("next");
           }
         );
       } else if (shouldSwipeRight) {
         isAnimating.value = true;
-        runOnJS(startSwipePrev)();
+        runOnJS(startSwipe)("prev");
         calendarHeight.value = withTiming(prevHeight.value, {
           duration: 200,
-          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+          easing: EASE_OUT_CUBIC,
         });
         translateX.value = withTiming(
           SCREEN_WIDTH,
           {
             duration: 200,
-            easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+            easing: EASE_OUT_CUBIC,
           },
           (finished) => {
             "worklet";
-            if (finished) runOnJS(commitSwipePrev)();
+            if (finished) runOnJS(commitSwipe)("prev");
           }
         );
       } else {
@@ -676,93 +644,69 @@ export const MonthView: React.FC = () => {
     height: calendarHeight.value,
   }));
 
-  // 折叠手势（垂直滑动）- 用于月份网格区域，与水平滑动共存
-  const foldGesture = Gesture.Pan()
-    .activeOffsetY([-15, 15])
-    .failOffsetX([-20, 20])
-    .onBegin(() => {
-      dragStartHeight.value = calendarHeight.value;
-    })
-    .onUpdate((event) => {
-      const newHeight = Math.max(
-        COLLAPSED_HEIGHT,
-        Math.min(EXPANDED_HEIGHT, dragStartHeight.value + event.translationY)
-      );
-      calendarHeight.value = newHeight;
-      // 同步更新折叠进度
-      foldProgress.value =
-        1 - (newHeight - COLLAPSED_HEIGHT) / (EXPANDED_HEIGHT - COLLAPSED_HEIGHT);
-    })
-    .onEnd((event) => {
-      const { translationY, velocityY } = event;
-      const shouldExpand =
-        translationY > FOLD_DISTANCE_THRESHOLD || velocityY > FOLD_VELOCITY_THRESHOLD;
-      const shouldFold =
-        translationY < -FOLD_DISTANCE_THRESHOLD || velocityY < -FOLD_VELOCITY_THRESHOLD;
+  const createFoldGesture = useCallback(
+    (options: { failOffsetX?: [number, number] }) => {
+      const gesture = Gesture.Pan()
+        .activeOffsetY([-15, 15])
+        .onBegin(() => {
+          dragStartHeight.value = calendarHeight.value;
+        })
+        .onUpdate((event) => {
+          const newHeight = Math.max(
+            COLLAPSED_HEIGHT,
+            Math.min(EXPANDED_HEIGHT, dragStartHeight.value + event.translationY)
+          );
+          calendarHeight.value = newHeight;
+          foldProgress.value =
+            1 - (newHeight - COLLAPSED_HEIGHT) / (EXPANDED_HEIGHT - COLLAPSED_HEIGHT);
+        })
+        .onEnd((event) => {
+          const { translationY, velocityY } = event;
+          const shouldExpand =
+            translationY > FOLD_DISTANCE_THRESHOLD || velocityY > FOLD_VELOCITY_THRESHOLD;
+          const shouldFold =
+            translationY < -FOLD_DISTANCE_THRESHOLD || velocityY < -FOLD_VELOCITY_THRESHOLD;
 
-      const currentlyCollapsed = isCollapsedSV.value;
+          const currentlyCollapsed = isCollapsedSV.value;
 
-      if (shouldFold && !currentlyCollapsed) {
-        runOnJS(toggleCollapse)();
-      } else if (shouldExpand && currentlyCollapsed) {
-        runOnJS(toggleCollapse)();
-      } else {
-        calendarHeight.value = withTiming(currentlyCollapsed ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT, {
-          duration: 250,
-          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+          if (shouldFold && !currentlyCollapsed) {
+            runOnJS(toggleCollapse)();
+          } else if (shouldExpand && currentlyCollapsed) {
+            runOnJS(toggleCollapse)();
+          } else {
+            calendarHeight.value = withTiming(
+              currentlyCollapsed ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT,
+              { duration: 250, easing: EASE_OUT_CUBIC }
+            );
+            foldProgress.value = withTiming(currentlyCollapsed ? 1 : 0, {
+              duration: 250,
+              easing: EASE_OUT_CUBIC,
+            });
+          }
         });
-        foldProgress.value = withTiming(currentlyCollapsed ? 1 : 0, {
-          duration: 250,
-          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-        });
+      if (options.failOffsetX) {
+        gesture.failOffsetX(options.failOffsetX);
       }
-    });
+      return gesture;
+    },
+    [
+      COLLAPSED_HEIGHT,
+      EXPANDED_HEIGHT,
+      dragStartHeight,
+      calendarHeight,
+      foldProgress,
+      isCollapsedSV,
+      toggleCollapse,
+    ]
+  );
 
-  // 折叠指示器专用手势 - 仅响应垂直滑动，不限制水平偏移
-  const indicatorFoldGesture = Gesture.Pan()
-    .activeOffsetY([-10, 10])
-    .onBegin(() => {
-      dragStartHeight.value = calendarHeight.value;
-    })
-    .onUpdate((event) => {
-      const newHeight = Math.max(
-        COLLAPSED_HEIGHT,
-        Math.min(EXPANDED_HEIGHT, dragStartHeight.value + event.translationY)
-      );
-      calendarHeight.value = newHeight;
-      // 同步更新折叠进度
-      foldProgress.value =
-        1 - (newHeight - COLLAPSED_HEIGHT) / (EXPANDED_HEIGHT - COLLAPSED_HEIGHT);
-    })
-    .onEnd((event) => {
-      const { translationY, velocityY } = event;
-      const shouldExpand =
-        translationY > FOLD_DISTANCE_THRESHOLD || velocityY > FOLD_VELOCITY_THRESHOLD;
-      const shouldFold =
-        translationY < -FOLD_DISTANCE_THRESHOLD || velocityY < -FOLD_VELOCITY_THRESHOLD;
-
-      const currentlyCollapsed = isCollapsedSV.value;
-
-      if (shouldFold && !currentlyCollapsed) {
-        runOnJS(toggleCollapse)();
-      } else if (shouldExpand && currentlyCollapsed) {
-        runOnJS(toggleCollapse)();
-      } else {
-        calendarHeight.value = withTiming(currentlyCollapsed ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT, {
-          duration: 250,
-          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-        });
-        foldProgress.value = withTiming(currentlyCollapsed ? 1 : 0, {
-          duration: 250,
-          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-        });
-      }
-    });
+  const foldGesture = createFoldGesture({ failOffsetX: [-20, 20] });
+  const indicatorFoldGesture = createFoldGesture({});
 
   // 折叠指示器点击手势 - 仅在折叠状态下响应点击展开
   const indicatorTapGesture = Gesture.Tap().onEnd(() => {
     if (isCollapsed) {
-      runOnJS(toggleCollapse);
+      runOnJS(toggleCollapse)();
     }
   });
 

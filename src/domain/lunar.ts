@@ -1,6 +1,12 @@
 import { eachDayOfInterval, endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
 
-import type { Holiday, LunarDate, SolarTerm } from "../domain/types";
+import {
+  isStatutoryHoliday as _isStatutoryHoliday,
+  isTraditionalHoliday as _isTraditionalHoliday,
+  STATUTORY_HOLIDAYS,
+} from "../constants/holidays";
+import type { Holiday, LunarDate, LunarDayInfo, SolarTerm } from "../domain/types";
+import { formatDateKey } from "../utils/dateFormat";
 import {
   getSolarMonthDays,
   lunarFromSolar,
@@ -14,17 +20,8 @@ import {
 // Lunar Calendar Cache
 // ============================================================================
 
-/** 农历信息缓存结构 */
-interface CachedLunarInfo {
-  lunarDay: string;
-  solarTerm?: string;
-  holiday?: string;
-  isHoliday: boolean;
-  isSolarTerm: boolean;
-}
-
 /** 月级缓存，key 为 "yyyy-MM"，value 为日期到农历信息的映射 */
-const lunarMonthCache = new Map<string, Map<string, CachedLunarInfo>>();
+const lunarMonthCache = new Map<string, Map<string, LunarDayInfo>>();
 
 /** 法定假日月级缓存，key 为 "yyyy-MM" (weekStartsOn:0)，value 为日期字符串 Set */
 const holidayMonthCache = new Map<string, Set<string>>();
@@ -47,8 +44,57 @@ export const clearLunarCache = () => {
 const solarToDate = (s: SolarDate): Date =>
   new Date(s.year, s.month - 1, s.day, s.hour, s.minute, s.second);
 
-const solarToIsoDate = (s: SolarDate): string =>
-  `${String(s.year).padStart(4, "0")}-${String(s.month).padStart(2, "0")}-${String(s.day).padStart(2, "0")}`;
+/** 单次 solarFromDate + lunarFromSolar 计算，提取所有农历信息 */
+const _getLunarInfoRaw = (
+  date: Date
+): {
+  lunarDay: string;
+  solarTerm: string | null;
+  holiday: string | null;
+  isHoliday: boolean;
+  isSolarTerm: boolean;
+} => {
+  const solar = solarFromDate(date);
+  const lunar = lunarFromSolar(solar);
+
+  const lunarDay = lunar.day === 1 ? lunar.monthInChinese : lunar.dayInChinese;
+
+  // holiday display: prioritize festivals over solar term
+  let holiday: string | null = null;
+  for (const festival of lunar.festivals) {
+    if (_isTraditionalHoliday(festival)) {
+      holiday = festival;
+      break;
+    }
+  }
+  if (!holiday) {
+    for (const festival of solarFestivals(solar)) {
+      if (_isStatutoryHoliday(festival)) {
+        holiday = festival;
+        break;
+      }
+    }
+  }
+  if (!holiday) {
+    if (lunar.festivals.length > 0) {
+      holiday = lunar.festivals[0];
+    } else {
+      const solarFs = solarFestivals(solar);
+      if (solarFs.length > 0) holiday = solarFs[0];
+    }
+  }
+
+  const isHolidayDay =
+    lunar.festivals.some(_isTraditionalHoliday) || solarFestivals(solar).some(_isStatutoryHoliday);
+
+  return {
+    lunarDay,
+    solarTerm: lunar.jieQi,
+    holiday,
+    isHoliday: isHolidayDay,
+    isSolarTerm: lunar.jieQi !== null,
+  };
+};
 
 // ============================================================================
 // Lunar Calendar Service
@@ -144,7 +190,7 @@ export const getSolarTerm = (date: Date): SolarTerm | null => {
   if (jieQi) {
     return {
       name: jieQi,
-      date: date.toISOString().split("T")[0],
+      date: formatDateKey(date),
       index: SOLAR_TERMS.indexOf(jieQi),
     };
   }
@@ -176,6 +222,9 @@ export const getSolarTermsForYear = (year: number): SolarTerm[] => {
   return terms.sort((a, b) => a.index - b.index);
 };
 
+const solarToIsoDate = (s: SolarDate): string =>
+  `${String(s.year).padStart(4, "0")}-${String(s.month).padStart(2, "0")}-${String(s.day).padStart(2, "0")}`;
+
 // ============================================================================
 // Holidays and Festivals
 // ============================================================================
@@ -187,14 +236,15 @@ export const getHolidays = (date: Date): Holiday[] => {
   const solar = solarFromDate(date);
   const lunar = lunarFromSolar(solar);
   const holidays: Holiday[] = [];
+  const dateStr = formatDateKey(date);
 
   // Check lunar festivals (traditional Chinese holidays)
   for (const festival of lunar.festivals) {
     holidays.push({
       name: festival,
-      date: date.toISOString().split("T")[0],
+      date: dateStr,
       type: "traditional",
-      isHoliday: isTraditionalHoliday(festival),
+      isHoliday: _isTraditionalHoliday(festival),
     });
   }
 
@@ -202,9 +252,9 @@ export const getHolidays = (date: Date): Holiday[] => {
   for (const festival of solarFestivals(solar)) {
     holidays.push({
       name: festival,
-      date: date.toISOString().split("T")[0],
+      date: dateStr,
       type: "statutory",
-      isHoliday: isStatutoryHoliday(festival),
+      isHoliday: _isStatutoryHoliday(festival),
     });
   }
 
@@ -212,31 +262,13 @@ export const getHolidays = (date: Date): Holiday[] => {
   if (lunar.jieQi) {
     holidays.push({
       name: lunar.jieQi,
-      date: date.toISOString().split("T")[0],
+      date: dateStr,
       type: "solar_term",
       isHoliday: false,
     });
   }
 
   return holidays;
-};
-
-/**
- * Traditional Chinese holidays that are days off
- */
-const TRADITIONAL_HOLIDAYS = ["春节", "元宵节", "清明节", "端午节", "中秋节", "重阳节", "除夕"];
-
-const isTraditionalHoliday = (name: string): boolean => {
-  return TRADITIONAL_HOLIDAYS.includes(name);
-};
-
-/**
- * Statutory holidays in China
- */
-const STATUTORY_HOLIDAYS = ["元旦", "春节", "清明节", "劳动节", "端午节", "中秋节", "国庆节"];
-
-const isStatutoryHoliday = (name: string): boolean => {
-  return STATUTORY_HOLIDAYS.includes(name);
 };
 
 /**
@@ -256,22 +288,26 @@ export const isSolarTermDay = (date: Date): boolean => {
   return lunar.jieQi !== null;
 };
 
+/** 从 festivals 中提取优先级最高的节日显示 */
+const _getHolidayDisplay = (lunarFestivals: string[], solarFs: string[]): string | null => {
+  for (const f of lunarFestivals) {
+    if (_isTraditionalHoliday(f)) return f;
+  }
+  for (const f of solarFs) {
+    if (_isStatutoryHoliday(f)) return f;
+  }
+  if (lunarFestivals.length > 0) return lunarFestivals[0];
+  if (solarFs.length > 0) return solarFs[0];
+  return null;
+};
+
 /**
  * Get the primary holiday/festival name for display
  */
 export const getHolidayDisplay = (date: Date): string | null => {
-  const holidays = getHolidays(date);
-  // Prioritize traditional holidays and statutory holidays over solar terms
-  const priorityHolidays = holidays.filter((h) => h.type !== "solar_term");
-  if (priorityHolidays.length > 0) {
-    return priorityHolidays[0].name;
-  }
-  // Then show solar term if no other holiday
-  const solarTermHoliday = holidays.find((h) => h.type === "solar_term");
-  if (solarTermHoliday) {
-    return solarTermHoliday.name;
-  }
-  return null;
+  const solar = solarFromDate(date);
+  const lunar = lunarFromSolar(solar);
+  return _getHolidayDisplay(lunar.festivals, solarFestivals(solar));
 };
 
 // ============================================================================
@@ -281,27 +317,14 @@ export const getHolidayDisplay = (date: Date): string | null => {
 /**
  * Get comprehensive lunar info for a date (for calendar cell display)
  */
-export const getLunarInfo = (
-  date: Date
-): {
-  lunarDay: string;
-  solarTerm?: string;
-  holiday?: string;
-  isHoliday: boolean;
-  isSolarTerm: boolean;
-} => {
-  const lunarDay = getLunarDayDisplay(date);
-  const solarTerm = getSolarTerm(date);
-  const holiday = getHolidayDisplay(date);
-  const isHolidayDay = isHoliday(date);
-  const isSolarTermDayFlag = isSolarTermDay(date);
-
+export const getLunarInfo = (date: Date): LunarDayInfo => {
+  const raw = _getLunarInfoRaw(date);
   return {
-    lunarDay,
-    solarTerm: solarTerm?.name ?? undefined,
-    holiday: holiday ?? undefined,
-    isHoliday: isHolidayDay,
-    isSolarTerm: isSolarTermDayFlag,
+    lunarDay: raw.lunarDay,
+    solarTerm: raw.solarTerm ?? undefined,
+    holiday: raw.holiday ?? undefined,
+    isHoliday: raw.isHoliday,
+    isSolarTerm: raw.isSolarTerm,
   };
 };
 
@@ -311,7 +334,7 @@ export const getLunarInfo = (
  * @param month 月份（0-indexed，0 = 一月）
  * @returns 日期字符串到农历信息的映射
  */
-export const getLunarInfoBatch = (year: number, month: number): Map<string, CachedLunarInfo> => {
+export const getLunarInfoBatch = (year: number, month: number): Map<string, LunarDayInfo> => {
   const cacheKey = `${year}-${String(month + 1).padStart(2, "0")}`;
 
   // 检查缓存
@@ -328,7 +351,7 @@ export const getLunarInfoBatch = (year: number, month: number): Map<string, Cach
   }
 
   // 计算整月的农历信息
-  const result = new Map<string, CachedLunarInfo>();
+  const result = new Map<string, LunarDayInfo>();
   const monthDate = new Date(year, month, 1);
   const monthStart = startOfMonth(monthDate);
   const monthEnd = endOfMonth(monthDate);
@@ -338,19 +361,13 @@ export const getLunarInfoBatch = (year: number, month: number): Map<string, Cach
   const days = eachDayOfInterval({ start: calStart, end: calEnd });
 
   for (const day of days) {
-    const dateStr = day.toISOString().split("T")[0];
-    const lunarDay = getLunarDayDisplay(day);
-    const solarTerm = getSolarTerm(day);
-    const holiday = getHolidayDisplay(day);
-    const isHolidayDay = isHoliday(day);
-    const isSolarTermDayFlag = isSolarTermDay(day);
-
-    result.set(dateStr, {
-      lunarDay,
-      solarTerm: solarTerm?.name ?? undefined,
-      holiday: holiday ?? undefined,
-      isHoliday: isHolidayDay,
-      isSolarTerm: isSolarTermDayFlag,
+    const raw = _getLunarInfoRaw(day);
+    result.set(formatDateKey(day), {
+      lunarDay: raw.lunarDay,
+      solarTerm: raw.solarTerm ?? undefined,
+      holiday: raw.holiday ?? undefined,
+      isHoliday: raw.isHoliday,
+      isSolarTerm: raw.isSolarTerm,
     });
   }
 
@@ -393,10 +410,7 @@ export const getStatutoryHolidaySetForMonth = (year: number, month: number): Set
   for (const day of days) {
     const holidays = getHolidays(day);
     if (holidays.some((h) => STATUTORY_HOLIDAYS.includes(h.name))) {
-      const y = day.getFullYear();
-      const m = String(day.getMonth() + 1).padStart(2, "0");
-      const d = String(day.getDate()).padStart(2, "0");
-      result.add(`${y}-${m}-${d}`);
+      result.add(formatDateKey(day));
     }
   }
 

@@ -130,6 +130,15 @@ export interface Holiday {
   isWorkday?: boolean; // 是否为调休工作日
 }
 
+/** 单日农历信息（用于日历单元格显示） */
+export interface LunarDayInfo {
+  lunarDay: string;
+  solarTerm?: string;
+  holiday?: string;
+  isHoliday: boolean;
+  isSolarTerm: boolean;
+}
+
 // ============================================================================
 // 数据库类型
 // ============================================================================
