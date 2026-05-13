@@ -10,7 +10,7 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import { memo, useEffect, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { SharedValue } from "react-native-reanimated";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
@@ -74,21 +74,15 @@ const AnimatedDayCell = memo(function AnimatedDayCell({
   const { theme } = useTheme();
   const c = theme.colors;
   const scale = useSharedValue(1);
-  const prevSelected = useSharedValue(false);
 
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    if (isSelected && !prevSelected.value) {
-      scale.value = withSpring(1.15, POP_ANIMATION_CONFIG);
-      timer = setTimeout(() => {
-        scale.value = withSpring(1, POP_ANIMATION_CONFIG);
-      }, 100);
-    }
-    prevSelected.value = isSelected;
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [isSelected, scale, prevSelected]);
+  const handlePressIn = useCallback(() => {
+    scale.value = withSpring(1.15, POP_ANIMATION_CONFIG);
+  }, [scale]);
+
+  const handlePress = useCallback(() => {
+    scale.value = withSpring(1, POP_ANIMATION_CONFIG);
+    onPress?.();
+  }, [scale, onPress]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -196,7 +190,7 @@ const AnimatedDayCell = memo(function AnimatedDayCell({
   }
 
   return (
-    <Pressable onPress={onPress} style={styles.dayCell}>
+    <Pressable onPressIn={handlePressIn} onPress={handlePress} style={styles.dayCell}>
       {cellContent}
     </Pressable>
   );
