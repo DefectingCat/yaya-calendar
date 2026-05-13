@@ -1,15 +1,14 @@
 // FlashList 月份列表 - 水平分页滚动浏览多个月份
 
+import type { FlashListRef } from "@shopify/flash-list";
 import { FlashList } from "@shopify/flash-list";
-import { memo, useCallback, useMemo, useRef } from "react";
-import { Dimensions, View } from "react-native";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { View } from "react-native";
 import { getLunarInfoBatch } from "../../domain/lunar";
 import type { LunarDayInfo } from "../../domain/types";
 import { useEventStore } from "../../stores/eventStore";
 import type { MonthItem } from "../../utils/monthData";
 import MonthGrid from "./MonthGrid";
-
-const SCREEN_WIDTH = Dimensions.get("window").width;
 
 type LunarInfoMap = Map<string, LunarDayInfo>;
 
@@ -26,6 +25,7 @@ const MonthList = memo(function MonthList({
   screenWidth,
   onMonthChange,
 }: MonthListProps) {
+  const flashListRef = useRef<FlashListRef<MonthItem>>(null);
   const getEventsForMonth = useEventStore((s) => s.getEventsForMonth);
 
   // 缓存农历和事件数据，避免重复计算
@@ -79,7 +79,7 @@ const MonthList = memo(function MonthList({
   });
 
   const onViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: Array<{ item: MonthItem }> }) => {
+    ({ viewableItems }: { viewableItems: { item: MonthItem }[] }) => {
       if (viewableItems.length > 0 && viewableItems[0].item) {
         onMonthChange(viewableItems[0].item);
       }
@@ -99,20 +99,27 @@ const MonthList = memo(function MonthList({
     [data, initialMonthId]
   );
 
+  // 当 initialMonthId 变化时（年/月选择器跳转），滚动到对应月份
+  useEffect(() => {
+    const index = data.findIndex((item) => item.id === initialMonthId);
+    if (index >= 0 && flashListRef.current) {
+      flashListRef.current.scrollToIndex({ index, animated: false });
+    }
+  }, [initialMonthId, data]);
+
   return (
     <FlashList
+      ref={flashListRef}
       data={data}
       renderItem={renderItem}
       horizontal
       pagingEnabled
-      estimatedItemSize={SCREEN_WIDTH}
       viewabilityConfigCallbackPairs={viewabilityConfigCallbackPairs.current}
       initialScrollIndex={initialIndex >= 0 ? initialIndex : 0}
       keyExtractor={(item) => item.id}
       showsHorizontalScrollIndicator={false}
       scrollEventThrottle={16}
       decelerationRate="fast"
-      snapToInterval={screenWidth}
       disableIntervalMomentum
     />
   );
