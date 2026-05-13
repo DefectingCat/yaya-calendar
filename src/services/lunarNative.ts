@@ -57,30 +57,6 @@ const getHolidayDisplay = (festivals: string[]): string | undefined => {
   return festivals.length > 0 ? festivals[0] : undefined;
 };
 
-/** 判断是否为假日 */
-const _isHolidayDay = (festivals: string[]): boolean => {
-  const statutory = ["元旦", "春节", "清明节", "劳动节", "端午节", "中秋节", "国庆节"];
-  const traditional = ["春节", "元宵节", "清明节", "端午节", "中秋节", "重阳节", "除夕"];
-  for (const f of festivals) {
-    if (traditional.includes(f) || statutory.includes(f)) {
-      return true;
-    }
-  }
-  return false;
-};
-
-/** 单条 NativeLunarInfo 转 SerializableLunarInfo */
-const _toSerializable = (info: NativeLunarInfo): import("./lunarWorker").SerializableLunarInfo => {
-  const festivals = parseFestivals(info.festivals);
-  return {
-    lunarDay: info.dayCn,
-    solarTerm: info.solarTerm ?? undefined,
-    holiday: getHolidayDisplay(festivals),
-    isHoliday: info.isHoliday,
-    isSolarTerm: info.isSolarTerm,
-  };
-};
-
 /** 是否可用原生模块 */
 export const isNativeModuleAvailable = (): boolean => {
   return Platform.OS === "android" && LunarModule != null;
