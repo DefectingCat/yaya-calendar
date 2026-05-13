@@ -26,6 +26,8 @@ interface MonthListProps {
   onMonthChange: (item: MonthItem) => void;
 }
 
+const PROGRAMMATIC_SCROLL_DEBOUNCE_MS = 300;
+
 const MonthList = memo(function MonthList({
   data,
   initialMonthId,
@@ -34,6 +36,10 @@ const MonthList = memo(function MonthList({
 }: MonthListProps) {
   const flashListRef = useRef<FlashListRef<MonthItem>>(null);
   const getEventsForMonth = useEventStore((s) => s.getEventsForMonth);
+
+  // 标记是否处于程序化滚动中（scrollToIndex 期间禁用 onViewableItemsChanged）
+  const isProgrammaticScrollRef = useRef(false);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 缓存农历和事件数据，避免重复计算
   const lunarCacheRef = useRef(new Map<string, LunarInfoMap>());
@@ -66,7 +72,6 @@ const MonthList = memo(function MonthList({
       const lunarMap = getLunarMap(item.year, item.month);
       const eventsMap = getEventsMap(item.year, item.month);
       const itemHeight = getMonthItemHeight(item.year, item.month, screenWidth);
-      console.log(`[MonthList] renderItem ${item.id} h=${itemHeight.toFixed(0)}`);
       return (
         <View style={{ width: screenWidth, height: itemHeight }}>
           <MonthGrid
@@ -89,6 +94,8 @@ const MonthList = memo(function MonthList({
 
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: { item: MonthItem }[] }) => {
+      // 忽略程序化滚动期间的可见性回调
+      if (isProgrammaticScrollRef.current) return;
       if (viewableItems.length > 0 && viewableItems[0].item) {
         onMonthChange(viewableItems[0].item);
       }
@@ -103,21 +110,48 @@ const MonthList = memo(function MonthList({
     },
   ]);
 
-  const initialIndex = useMemo(() => {
-    const idx = data.findIndex((item) => item.id === initialMonthId);
-    console.log(`[MonthList] initialMonthId=${initialMonthId} initialIndex=${idx} dataLength=${data.length}`);
-    return idx;
-  }, [data, initialMonthId]);
+  const initialIndex = useMemo(
+    () => data.findIndex((item) => item.id === initialMonthId),
+    [data, initialMonthId]
+  );
+
+  /** 程序化滚动到指定索引，期间禁用 viewability 回调 */
+  const scrollToIndexProgrammatic = useCallback(
+    (index: number) => {
+      if (!flashListRef.current) return;
+
+      // 清除之前的 timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      isProgrammaticScrollRef.current = true;
+      flashListRef.current.scrollToIndex({ index, animated: false });
+
+      // 滚动完成后恢复 viewability 回调
+      scrollTimeoutRef.current = setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, PROGRAMMATIC_SCROLL_DEBOUNCE_MS);
+    },
+    []
+  );
 
   // 当 initialMonthId 变化时（年/月选择器跳转），滚动到对应月份
   useEffect(() => {
     const index = data.findIndex((item) => item.id === initialMonthId);
-    console.log(`[MonthList] scrollToIndex effect index=${index} refExists=${!!flashListRef.current}`);
-    if (index >= 0 && flashListRef.current) {
-      console.log(`[MonthList] calling scrollToIndex(${index})`);
-      flashListRef.current.scrollToIndex({ index, animated: false });
+    if (index >= 0) {
+      scrollToIndexProgrammatic(index);
     }
-  }, [initialMonthId, data]);
+  }, [initialMonthId, data, scrollToIndexProgrammatic]);
+
+  // 清理 timeout
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <FlashList
