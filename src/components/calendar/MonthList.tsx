@@ -66,6 +66,7 @@ const MonthList = memo(function MonthList({
       const lunarMap = getLunarMap(item.year, item.month);
       const eventsMap = getEventsMap(item.year, item.month);
       const itemHeight = getMonthItemHeight(item.year, item.month, screenWidth);
+      console.log(`[MonthList] renderItem ${item.id} h=${itemHeight.toFixed(0)}`);
       return (
         <View style={{ width: screenWidth, height: itemHeight }}>
           <MonthGrid
@@ -102,15 +103,18 @@ const MonthList = memo(function MonthList({
     },
   ]);
 
-  const initialIndex = useMemo(
-    () => data.findIndex((item) => item.id === initialMonthId),
-    [data, initialMonthId]
-  );
+  const initialIndex = useMemo(() => {
+    const idx = data.findIndex((item) => item.id === initialMonthId);
+    console.log(`[MonthList] initialMonthId=${initialMonthId} initialIndex=${idx} dataLength=${data.length}`);
+    return idx;
+  }, [data, initialMonthId]);
 
   // 当 initialMonthId 变化时（年/月选择器跳转），滚动到对应月份
   useEffect(() => {
     const index = data.findIndex((item) => item.id === initialMonthId);
+    console.log(`[MonthList] scrollToIndex effect index=${index} refExists=${!!flashListRef.current}`);
     if (index >= 0 && flashListRef.current) {
+      console.log(`[MonthList] calling scrollToIndex(${index})`);
       flashListRef.current.scrollToIndex({ index, animated: false });
     }
   }, [initialMonthId, data]);

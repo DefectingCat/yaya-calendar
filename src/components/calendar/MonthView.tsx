@@ -82,12 +82,21 @@ export const MonthView: React.FC = () => {
   // ── FlashList 月份数据（以当前月为中心，前后各 10 年）─────────────────
   const monthItems = useMemo(() => {
     const [year, month] = displayMonthStr.split("-").map(Number);
-    return generateMonthItems(year, month - 1, 120);
+    const items = generateMonthItems(year, month - 1, 120);
+    console.log(
+      `[MonthView] generateMonthItems center=${year}-${String(month).padStart(2, "0")} total=${items.length} first=${items[0].id} last=${items[items.length - 1].id}`
+    );
+    return items;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const displayMonthStrRef = useRef(displayMonthStr);
   displayMonthStrRef.current = displayMonthStr;
+
+  useEffect(() => {
+    console.log(`[MonthView] mount displayMonthStr=${displayMonthStr}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // FlashList 容器动态高度（跟随当前可见月份）
   const [visibleMonthHeight, setVisibleMonthHeight] = useState(0);
@@ -505,6 +514,11 @@ export const MonthView: React.FC = () => {
       {/* 展开状态：FlashList 月份列表 */}
       {!isCollapsed && (
         <View style={[styles.monthListContainer, { height: visibleMonthHeight }]}>
+          {(() => {
+            const initialId = getMonthId(displayMonth.getFullYear(), displayMonth.getMonth());
+            console.log(`[MonthView] render MonthList initialMonthId=${initialId} visibleMonthHeight=${visibleMonthHeight.toFixed(0)}`);
+            return null;
+          })()}
           <MonthList
             data={monthItems}
             initialMonthId={getMonthId(displayMonth.getFullYear(), displayMonth.getMonth())}
