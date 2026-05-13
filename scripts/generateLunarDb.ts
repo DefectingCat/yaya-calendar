@@ -5,8 +5,8 @@
  * 运行: npx tsx scripts/generateLunarDb.ts
  */
 
+import * as path from "node:path";
 import Database from "better-sqlite3";
-import * as path from "path";
 import { lunarFromSolar, solarFestivals, solarFromDate } from "../src/domain/lunarCalc";
 
 const START_YEAR = 1900;
@@ -147,7 +147,9 @@ function main() {
   const count = db.prepare("SELECT COUNT(*) as cnt FROM lunar_days").get() as { cnt: number };
   console.log(`\n预计算完成！共 ${count.cnt} 条记录`);
   console.log(`数据库文件: ${OUTPUT_PATH}`);
-  console.log(`文件大小: ${(db.prepare("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()").get() as { size: number }).size / 1024 / 1024} MB`);
+  console.log(
+    `文件大小: ${(db.prepare("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()").get() as { size: number }).size / 1024 / 1024} MB`
+  );
 
   db.close();
 }

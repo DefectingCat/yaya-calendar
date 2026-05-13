@@ -3098,7 +3098,7 @@ export const eLon = (t: number, n: number): number => {
     if (n0 === 0) {
       continue;
     }
-    let m;
+    let m = 0;
     if (n < 0) {
       m = n2;
     } else {
@@ -3211,8 +3211,8 @@ export const dtCalc = (y: number): number => {
     }
     return dtExt(y, jsd) - ((dtExt(y0, jsd) - t0) * (y0 + 100 - y)) / 100;
   }
-  let i;
-  for (i = 0; i < size; i += 5) {
+  let i = 0;
+  for (; i < size; i += 5) {
     if (y < DT_AT[i + 5]) {
       break;
     }
@@ -3248,7 +3248,7 @@ export const mv = (t: number): number => {
 
 // 给太阳黄经求时间 (高精迭代) — L3433-3442
 export const saLonT = (w: number): number => {
-  let t;
+  let t = 0;
   let v = 628.3319653318;
   t = (w - 1.75347 - Math.PI) / v;
   v = ev(t);
@@ -3265,7 +3265,7 @@ export const msaLon = (t: number, mn: number, sn: number): number => {
 
 // 给月相相位求时间 (高精迭代) — L3446-3455
 export const msaLonT = (w: number): number => {
-  let t;
+  let t = 0;
   const v0 = 7771.37714500204;
   t = (w + 1.08472) / v0;
   t += (w - msaLon(t, 3, 3)) / v0;
@@ -3292,7 +3292,7 @@ export const saLonT2 = (w: number): number => {
 
 // 月相近似2 — L3463-3475
 export const msaLonT2 = (w: number): number => {
-  let t;
+  let t = 0;
   const v0 = 7771.37714500204;
   t = (w + 1.08472) / v0;
   let t2 = t * t;

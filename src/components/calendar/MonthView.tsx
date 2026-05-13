@@ -13,21 +13,8 @@ import {
   subMonths,
 } from "date-fns";
 import type React from "react";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import {
-  Dimensions,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Dimensions, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   cancelAnimation,
@@ -39,10 +26,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { getLunarInfoBatch } from "../../domain/lunar";
-import {
-  getLunarInfoBatchAsync,
-  type SerializableLunarInfo,
-} from "../../services/lunarWorker";
+import { getLunarInfoBatchAsync, type SerializableLunarInfo } from "../../services/lunarWorker";
 import { useEventStore, useViewStore } from "../../stores/eventStore";
 import { useTheme } from "../../stores/themeStore";
 import {
@@ -71,7 +55,7 @@ const FOLD_DISTANCE_THRESHOLD = SCREEN_HEIGHT * 0.05; // 折叠距离阈值
 
 /** Slot-based 三屏面板数据 */
 interface SlotData {
-  year: number;  // 公历年
+  year: number; // 公历年
   month: number; // 0-indexed 月份
 }
 
@@ -95,9 +79,7 @@ export const MonthView: React.FC = () => {
   const displayMonthStr = useViewStore((s) => s.displayMonth);
   const setDisplayMonth = useViewStore((s) => s.setDisplayMonth);
   const setSelectedDate = useViewStore((s) => s.setSelectedDate);
-  const setSelectedDateAndMonth = useViewStore(
-    (s) => s.setSelectedDateAndMonth
-  );
+  const setSelectedDateAndMonth = useViewStore((s) => s.setSelectedDateAndMonth);
   const setHasNavigatedMonth = useViewStore((s) => s.setHasNavigatedMonth);
 
   // 从全局状态获取 displayMonth，转换为 Date 对象
@@ -153,9 +135,7 @@ export const MonthView: React.FC = () => {
     if (!prev || !displayMonthStr) return false;
     const [prevYear, prevMonthNum] = prev.split("-").map(Number);
     const [currYear, currMonthNum] = displayMonthStr.split("-").map(Number);
-    return (
-      Math.abs((currYear - prevYear) * 12 + (currMonthNum - prevMonthNum)) > 1
-    );
+    return Math.abs((currYear - prevYear) * 12 + (currMonthNum - prevMonthNum)) > 1;
   }, [displayMonthStr]);
 
   const calendarHeight = useSharedValue(320); // 初始值，会在 useLayoutEffect 中更新
@@ -180,8 +160,7 @@ export const MonthView: React.FC = () => {
     [prevMonth]
   );
   const currentRowCount = useMemo(
-    () =>
-      getCalendarRowCount(displayMonth.getFullYear(), displayMonth.getMonth()),
+    () => getCalendarRowCount(displayMonth.getFullYear(), displayMonth.getMonth()),
     [displayMonth]
   );
   const nextRowCount = useMemo(
@@ -196,27 +175,18 @@ export const MonthView: React.FC = () => {
   );
 
   // 折叠高度 = 单行高度
-  const COLLAPSED_HEIGHT = useMemo(
-    () => calculateSingleRowHeight(screenWidth),
-    [screenWidth]
-  );
+  const COLLAPSED_HEIGHT = useMemo(() => calculateSingleRowHeight(screenWidth), [screenWidth]);
 
   // 计算目标行索引（优先选中日期，否则用今天）
   const targetRowIndex = useMemo(() => {
-    const targetDateStr =
-      selectedDate || new Date().toISOString().split("T")[0];
+    const targetDateStr = selectedDate || new Date().toISOString().split("T")[0];
     const targetDate = new Date(targetDateStr);
-    return getRowIndexForDate(
-      targetDate,
-      displayMonth.getFullYear(),
-      displayMonth.getMonth()
-    );
+    return getRowIndexForDate(targetDate, displayMonth.getFullYear(), displayMonth.getMonth());
   }, [selectedDate, displayMonth]);
 
   // 折叠状态下：计算上一周/下一周所在的月份和行索引（用于三屏预渲染）
   const currentWeekTargetDate = useMemo(() => {
-    const targetDateStr =
-      selectedDate || new Date().toISOString().split("T")[0];
+    const targetDateStr = selectedDate || new Date().toISOString().split("T")[0];
     return new Date(targetDateStr);
   }, [selectedDate]);
 
@@ -244,10 +214,7 @@ export const MonthView: React.FC = () => {
 
   // 预计算当前月农历信息（折叠状态中心面板使用）
   const currentLunarInfoMap = useMemo(() => {
-    return getLunarInfoBatch(
-      displayMonth.getFullYear(),
-      displayMonth.getMonth()
-    );
+    return getLunarInfoBatch(displayMonth.getFullYear(), displayMonth.getMonth());
   }, [displayMonth]);
 
   const getEventsForMonth = useEventStore((s) => s.getEventsForMonth);
@@ -285,29 +252,29 @@ export const MonthView: React.FC = () => {
 
   // 折叠状态下的农历和事件预计算
   // prevWeek/nextWeek 使用异步计算（worklet 线程）
-  const [prevWeekLunarInfoMap, setPrevWeekLunarInfoMap] =
-    useState<LunarInfoMap>(EMPTY_LUNAR_MAP as any);
-  const [nextWeekLunarInfoMap, setNextWeekLunarInfoMap] =
-    useState<LunarInfoMap>(EMPTY_LUNAR_MAP as any);
+  const [prevWeekLunarInfoMap, setPrevWeekLunarInfoMap] = useState<LunarInfoMap>(
+    EMPTY_LUNAR_MAP as any
+  );
+  const [nextWeekLunarInfoMap, setNextWeekLunarInfoMap] = useState<LunarInfoMap>(
+    EMPTY_LUNAR_MAP as any
+  );
 
   useEffect(() => {
     if (!isCollapsed) return;
 
     let cancelled = false;
 
-    getLunarInfoBatchAsync(
-      prevWeekInfo.month.getFullYear(),
-      prevWeekInfo.month.getMonth()
-    ).then((map) => {
-      if (!cancelled) setPrevWeekLunarInfoMap(map);
-    });
+    getLunarInfoBatchAsync(prevWeekInfo.month.getFullYear(), prevWeekInfo.month.getMonth()).then(
+      (map) => {
+        if (!cancelled) setPrevWeekLunarInfoMap(map);
+      }
+    );
 
-    getLunarInfoBatchAsync(
-      nextWeekInfo.month.getFullYear(),
-      nextWeekInfo.month.getMonth()
-    ).then((map) => {
-      if (!cancelled) setNextWeekLunarInfoMap(map);
-    });
+    getLunarInfoBatchAsync(nextWeekInfo.month.getFullYear(), nextWeekInfo.month.getMonth()).then(
+      (map) => {
+        if (!cancelled) setNextWeekLunarInfoMap(map);
+      }
+    );
 
     return () => {
       cancelled = true;
@@ -316,20 +283,14 @@ export const MonthView: React.FC = () => {
   const prevWeekEventsMap = useMemo(
     () =>
       isCollapsed
-        ? getEventsForMonth(
-            prevWeekInfo.month.getFullYear(),
-            prevWeekInfo.month.getMonth()
-          )
+        ? getEventsForMonth(prevWeekInfo.month.getFullYear(), prevWeekInfo.month.getMonth())
         : (EMPTY_EVENTS_MAP as any),
     [isCollapsed, prevWeekInfo.month, getEventsForMonth]
   );
   const nextWeekEventsMap = useMemo(
     () =>
       isCollapsed
-        ? getEventsForMonth(
-            nextWeekInfo.month.getFullYear(),
-            nextWeekInfo.month.getMonth()
-          )
+        ? getEventsForMonth(nextWeekInfo.month.getFullYear(), nextWeekInfo.month.getMonth())
         : (EMPTY_EVENTS_MAP as any),
     [isCollapsed, nextWeekInfo.month, getEventsForMonth]
   );
@@ -481,8 +442,7 @@ export const MonthView: React.FC = () => {
     if (prevMonth && displayMonthStr) {
       const [prevYear, prevMonthNum] = prevMonth.split("-").map(Number);
       const [currYear, currMonthNum] = displayMonthStr.split("-").map(Number);
-      const monthDiff =
-        (currYear - prevYear) * 12 + (currMonthNum - prevMonthNum);
+      const monthDiff = (currYear - prevYear) * 12 + (currMonthNum - prevMonthNum);
 
       if (Math.abs(monthDiff) > 1) {
         // 大跨度跳转：直接显示，避免淡入淡出导致的闪烁
@@ -527,24 +487,15 @@ export const MonthView: React.FC = () => {
 
   // 折叠高度动画
   useLayoutEffect(() => {
-    calendarHeight.value = withTiming(
-      isCollapsed ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT,
-      {
-        duration: 250,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-      }
-    );
+    calendarHeight.value = withTiming(isCollapsed ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT, {
+      duration: 250,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+    });
     foldProgress.value = withTiming(isCollapsed ? 1 : 0, {
       duration: 250,
       easing: Easing.bezier(0.25, 0.1, 0.25, 1),
     });
-  }, [
-    isCollapsed,
-    EXPANDED_HEIGHT,
-    COLLAPSED_HEIGHT,
-    calendarHeight,
-    foldProgress,
-  ]);
+  }, [isCollapsed, EXPANDED_HEIGHT, COLLAPSED_HEIGHT, calendarHeight, foldProgress]);
 
   // 切换周的回调（折叠状态下使用）
   const goToNextWeekJS = useCallback(() => {
@@ -568,13 +519,7 @@ export const MonthView: React.FC = () => {
       // 跨月：一次性改 selectedDate + displayMonth
       setSelectedDateAndMonth(targetDate);
     }
-  }, [
-    selectedDate,
-    displayMonth,
-    setSelectedDate,
-    setSelectedDateAndMonth,
-    translateX,
-  ]);
+  }, [selectedDate, displayMonth, setSelectedDate, setSelectedDateAndMonth, translateX]);
 
   const goToPrevWeekJS = useCallback(() => {
     translateX.value = 0;
@@ -595,13 +540,7 @@ export const MonthView: React.FC = () => {
     } else {
       setSelectedDateAndMonth(targetDate);
     }
-  }, [
-    selectedDate,
-    displayMonth,
-    setSelectedDate,
-    setSelectedDateAndMonth,
-    translateX,
-  ]);
+  }, [selectedDate, displayMonth, setSelectedDate, setSelectedDateAndMonth, translateX]);
 
   const panGesture = Gesture.Pan()
     .activeOffsetX([-10, 10])
@@ -614,20 +553,15 @@ export const MonthView: React.FC = () => {
       if (isCollapsedSV.value) return;
 
       // 动态高度计算（clamp progress 到 [0, 1]）
-      const progress = Math.min(
-        1,
-        Math.max(0, Math.abs(event.translationX) / SCREEN_WIDTH)
-      );
+      const progress = Math.min(1, Math.max(0, Math.abs(event.translationX) / SCREEN_WIDTH));
       if (event.translationX < 0) {
         // 向左滑 → 下月
         calendarHeight.value =
-          currentHeight.value +
-          (nextHeight.value - currentHeight.value) * progress;
+          currentHeight.value + (nextHeight.value - currentHeight.value) * progress;
       } else {
         // 向右滑 → 上月
         calendarHeight.value =
-          currentHeight.value +
-          (prevHeight.value - currentHeight.value) * progress;
+          currentHeight.value + (prevHeight.value - currentHeight.value) * progress;
       }
     })
     .onEnd((event) => {
@@ -635,11 +569,9 @@ export const MonthView: React.FC = () => {
 
       const { translationX, velocityX } = event;
       const shouldSwipeLeft =
-        translationX < -SWIPE_DISTANCE_THRESHOLD ||
-        velocityX < -SWIPE_VELOCITY_THRESHOLD;
+        translationX < -SWIPE_DISTANCE_THRESHOLD || velocityX < -SWIPE_VELOCITY_THRESHOLD;
       const shouldSwipeRight =
-        translationX > SWIPE_DISTANCE_THRESHOLD ||
-        velocityX > SWIPE_VELOCITY_THRESHOLD;
+        translationX > SWIPE_DISTANCE_THRESHOLD || velocityX > SWIPE_VELOCITY_THRESHOLD;
 
       // 折叠状态：切换周
       if (isCollapsedSV.value) {
@@ -759,17 +691,14 @@ export const MonthView: React.FC = () => {
       calendarHeight.value = newHeight;
       // 同步更新折叠进度
       foldProgress.value =
-        1 -
-        (newHeight - COLLAPSED_HEIGHT) / (EXPANDED_HEIGHT - COLLAPSED_HEIGHT);
+        1 - (newHeight - COLLAPSED_HEIGHT) / (EXPANDED_HEIGHT - COLLAPSED_HEIGHT);
     })
     .onEnd((event) => {
       const { translationY, velocityY } = event;
       const shouldExpand =
-        translationY > FOLD_DISTANCE_THRESHOLD ||
-        velocityY > FOLD_VELOCITY_THRESHOLD;
+        translationY > FOLD_DISTANCE_THRESHOLD || velocityY > FOLD_VELOCITY_THRESHOLD;
       const shouldFold =
-        translationY < -FOLD_DISTANCE_THRESHOLD ||
-        velocityY < -FOLD_VELOCITY_THRESHOLD;
+        translationY < -FOLD_DISTANCE_THRESHOLD || velocityY < -FOLD_VELOCITY_THRESHOLD;
 
       const currentlyCollapsed = isCollapsedSV.value;
 
@@ -778,13 +707,10 @@ export const MonthView: React.FC = () => {
       } else if (shouldExpand && currentlyCollapsed) {
         runOnJS(toggleCollapse)();
       } else {
-        calendarHeight.value = withTiming(
-          currentlyCollapsed ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT,
-          {
-            duration: 250,
-            easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-          }
-        );
+        calendarHeight.value = withTiming(currentlyCollapsed ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT, {
+          duration: 250,
+          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+        });
         foldProgress.value = withTiming(currentlyCollapsed ? 1 : 0, {
           duration: 250,
           easing: Easing.bezier(0.25, 0.1, 0.25, 1),
@@ -806,17 +732,14 @@ export const MonthView: React.FC = () => {
       calendarHeight.value = newHeight;
       // 同步更新折叠进度
       foldProgress.value =
-        1 -
-        (newHeight - COLLAPSED_HEIGHT) / (EXPANDED_HEIGHT - COLLAPSED_HEIGHT);
+        1 - (newHeight - COLLAPSED_HEIGHT) / (EXPANDED_HEIGHT - COLLAPSED_HEIGHT);
     })
     .onEnd((event) => {
       const { translationY, velocityY } = event;
       const shouldExpand =
-        translationY > FOLD_DISTANCE_THRESHOLD ||
-        velocityY > FOLD_VELOCITY_THRESHOLD;
+        translationY > FOLD_DISTANCE_THRESHOLD || velocityY > FOLD_VELOCITY_THRESHOLD;
       const shouldFold =
-        translationY < -FOLD_DISTANCE_THRESHOLD ||
-        velocityY < -FOLD_VELOCITY_THRESHOLD;
+        translationY < -FOLD_DISTANCE_THRESHOLD || velocityY < -FOLD_VELOCITY_THRESHOLD;
 
       const currentlyCollapsed = isCollapsedSV.value;
 
@@ -825,13 +748,10 @@ export const MonthView: React.FC = () => {
       } else if (shouldExpand && currentlyCollapsed) {
         runOnJS(toggleCollapse)();
       } else {
-        calendarHeight.value = withTiming(
-          currentlyCollapsed ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT,
-          {
-            duration: 250,
-            easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-          }
-        );
+        calendarHeight.value = withTiming(currentlyCollapsed ? COLLAPSED_HEIGHT : EXPANDED_HEIGHT, {
+          duration: 250,
+          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+        });
         foldProgress.value = withTiming(currentlyCollapsed ? 1 : 0, {
           duration: 250,
           easing: Easing.bezier(0.25, 0.1, 0.25, 1),
@@ -847,9 +767,7 @@ export const MonthView: React.FC = () => {
   });
 
   return (
-    <View
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-    >
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Fixed weekday header */}
       <View style={styles.weekdayHeader}>
         {WEEKDAYS.map((day, idx) => (
@@ -858,10 +776,7 @@ export const MonthView: React.FC = () => {
             style={[
               styles.weekdayText,
               {
-                color:
-                  idx >= 5
-                    ? theme.colors.weekendText
-                    : theme.colors.textTertiary,
+                color: idx >= 5 ? theme.colors.weekendText : theme.colors.textTertiary,
               },
             ]}
           >
@@ -917,35 +832,31 @@ export const MonthView: React.FC = () => {
             </>
           ) : (
             // 展开状态：slot-based 三屏渲染（固定 key，commit 时轮转数据）
-            <>
-              {slots.map((slot, i) => {
-                // slot[1] = current 始终渲染，slot[0]/[2] = prev/next 受 showAdjacent 控制
-                const isCurrent = i === 1;
-                if (!isCurrent && (!showAdjacent || isLargeJump)) return null;
-                return (
-                  <Animated.View key={i} style={[styles.monthPanel, slotStyles[i]]}>
-                    <MonthGrid
-                      year={slot.year}
-                      month={slot.month}
-                      fidelity="full"
-                      lunarInfoMap={slotLunarMaps[i]}
-                      eventsMap={slotEventsMaps[i]}
-                    />
-                  </Animated.View>
-                );
-              })}
-            </>
+            slots.map((slot, i) => {
+              // slot[1] = current 始终渲染，slot[0]/[2] = prev/next 受 showAdjacent 控制
+              const isCurrent = i === 1;
+              if (!isCurrent && (!showAdjacent || isLargeJump)) return null;
+              return (
+                <Animated.View
+                  key={`${slot.year}-${slot.month}`}
+                  style={[styles.monthPanel, slotStyles[i]]}
+                >
+                  <MonthGrid
+                    year={slot.year}
+                    month={slot.month}
+                    fidelity="full"
+                    lunarInfoMap={slotLunarMaps[i]}
+                    eventsMap={slotEventsMaps[i]}
+                  />
+                </Animated.View>
+              );
+            })
           )}
         </Animated.View>
       </GestureDetector>
 
       {/* Collapse indicator area - includes indicator and space below it */}
-      <GestureDetector
-        gesture={Gesture.Simultaneous(
-          indicatorFoldGesture,
-          indicatorTapGesture
-        )}
-      >
+      <GestureDetector gesture={Gesture.Simultaneous(indicatorFoldGesture, indicatorTapGesture)}>
         <View style={styles.collapseIndicatorArea}>
           <View style={styles.collapseIndicator}>
             <Ionicons

@@ -58,7 +58,7 @@ const getHolidayDisplay = (festivals: string[]): string | undefined => {
 };
 
 /** 判断是否为假日 */
-const isHolidayDay = (festivals: string[]): boolean => {
+const _isHolidayDay = (festivals: string[]): boolean => {
   const statutory = ["元旦", "春节", "清明节", "劳动节", "端午节", "中秋节", "国庆节"];
   const traditional = ["春节", "元宵节", "清明节", "端午节", "中秋节", "重阳节", "除夕"];
   for (const f of festivals) {
@@ -70,7 +70,7 @@ const isHolidayDay = (festivals: string[]): boolean => {
 };
 
 /** 单条 NativeLunarInfo 转 SerializableLunarInfo */
-const toSerializable = (info: NativeLunarInfo): import("./lunarWorker").SerializableLunarInfo => {
+const _toSerializable = (info: NativeLunarInfo): import("./lunarWorker").SerializableLunarInfo => {
   const festivals = parseFestivals(info.festivals);
   return {
     lunarDay: info.dayCn,
