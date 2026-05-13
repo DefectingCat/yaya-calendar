@@ -1,6 +1,6 @@
 // 日历计算工具
 
-import { endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
+import { eachDayOfInterval, endOfMonth, endOfWeek, startOfMonth, startOfWeek } from "date-fns";
 
 import { HORIZONTAL_MARGIN, ROW_GAP } from "../constants/layout";
 
@@ -24,8 +24,7 @@ function getCalendarBounds(year: number, month: number): { start: Date; end: Dat
  */
 export function getCalendarRowCount(year: number, month: number): number {
   const { start, end } = getCalendarBounds(year, month);
-  const diffMs = end.getTime() - start.getTime();
-  const days = Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1;
+  const days = eachDayOfInterval({ start, end }).length;
   return Math.ceil(days / 7);
 }
 
@@ -60,8 +59,8 @@ export function calculateSingleRowHeight(screenWidth: number): number {
  */
 export function getRowIndexForDate(date: Date, year: number, month: number): number {
   const { start } = getCalendarBounds(year, month);
-  const diffMs = date.getTime() - start.getTime();
-  const dayIndex = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  const days = eachDayOfInterval({ start, end: date }).length;
+  const dayIndex = days - 1;
   if (dayIndex < 0) return 0;
   return Math.floor(dayIndex / 7);
 }

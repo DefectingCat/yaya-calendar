@@ -66,16 +66,8 @@ const MonthList = memo(function MonthList({
       const lunarMap = getLunarMap(item.year, item.month);
       const eventsMap = getEventsMap(item.year, item.month);
       const itemHeight = getMonthItemHeight(item.year, item.month, screenWidth);
-      const rowCount = getCalendarRowCount(item.year, item.month);
-      console.log(`[MonthList] renderItem ${item.id} rowCount=${rowCount} itemHeight=${itemHeight.toFixed(1)}`);
       return (
-        <View
-          style={{ width: screenWidth, height: itemHeight }}
-          onLayout={(e) => {
-            const { height } = e.nativeEvent.layout;
-            console.log(`[MonthList] onLayout ${item.id} expected=${itemHeight.toFixed(1)} actual=${height.toFixed(1)}`);
-          }}
-        >
+        <View style={{ width: screenWidth, height: itemHeight }}>
           <MonthGrid
             year={item.year}
             month={item.month}

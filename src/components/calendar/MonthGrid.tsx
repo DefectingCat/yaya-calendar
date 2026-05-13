@@ -295,17 +295,8 @@ const MonthGrid = memo(function MonthGrid({
 
   // 无折叠动画时，使用原有渲染方式
   if (!foldProgress || targetRowIndex === undefined) {
-    const rowCount = Math.ceil(calendarDays.length / 7);
     return (
-      <View
-        style={styles.daysGrid}
-        onLayout={(e) => {
-          const { height } = e.nativeEvent.layout;
-          console.log(
-            `[MonthGrid] onLayout ${year}-${String(month + 1).padStart(2, "0")} days=${calendarDays.length} rowCount=${rowCount} actualHeight=${height.toFixed(1)}`
-          );
-        }}
-      >
+      <View style={styles.daysGrid}>
         {calendarDays.map(renderDayCell)}
       </View>
     );
