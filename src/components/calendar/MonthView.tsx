@@ -89,6 +89,9 @@ export const MonthView: React.FC = () => {
   const displayMonthStrRef = useRef(displayMonthStr);
   displayMonthStrRef.current = displayMonthStr;
 
+  // FlashList 容器动态高度（跟随当前可见月份）
+  const [visibleMonthHeight, setVisibleMonthHeight] = useState(0);
+
   const handleMonthChange = useCallback(
     (item: MonthItem) => {
       const newMonthStr = `${item.year}-${String(item.month + 1).padStart(2, "0")}-01`;
@@ -126,11 +129,15 @@ export const MonthView: React.FC = () => {
     (item: MonthItem) => {
       if (item.id !== prevMonthIdRef.current) {
         prevMonthIdRef.current = item.id;
+        // 同步更新 FlashList 容器高度为当前月份实际高度
+        const rowCount = getCalendarRowCount(item.year, item.month);
+        const height = calculateGridHeight(rowCount, screenWidth);
+        setVisibleMonthHeight(height);
         handleMonthChange(item);
         triggerIndicatorSpring();
       }
     },
-    [handleMonthChange, triggerIndicatorSpring]
+    [screenWidth, handleMonthChange, triggerIndicatorSpring]
   );
 
   // ── 折叠状态 ────────────────────────────────────────────────────
@@ -252,6 +259,14 @@ export const MonthView: React.FC = () => {
   useEffect(() => {
     isCollapsedSV.value = isCollapsed;
   }, [isCollapsed, isCollapsedSV]);
+
+  // 同步当前月份高度到 FlashList 容器（展开状态）
+  useLayoutEffect(() => {
+    if (isCollapsed) return;
+    const rowCount = getCalendarRowCount(displayMonth.getFullYear(), displayMonth.getMonth());
+    const height = calculateGridHeight(rowCount, screenWidth);
+    setVisibleMonthHeight(height);
+  }, [displayMonth, screenWidth, isCollapsed]);
 
   // 当 selectedDate 月份与 displayMonth 不同步时兜底同步
   const prevDisplayMonthRef = useRef(displayMonthStr);
@@ -489,7 +504,7 @@ export const MonthView: React.FC = () => {
 
       {/* 展开状态：FlashList 月份列表 */}
       {!isCollapsed && (
-        <View style={styles.monthListContainer}>
+        <View style={[styles.monthListContainer, { height: visibleMonthHeight }]}>
           <MonthList
             data={monthItems}
             initialMonthId={getMonthId(displayMonth.getFullYear(), displayMonth.getMonth())}

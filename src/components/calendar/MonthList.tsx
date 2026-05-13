@@ -7,10 +7,17 @@ import { View } from "react-native";
 import { getLunarInfoBatch } from "../../domain/lunar";
 import type { LunarDayInfo } from "../../domain/types";
 import { useEventStore } from "../../stores/eventStore";
+import { calculateGridHeight, getCalendarRowCount } from "../../utils/calendar";
 import type { MonthItem } from "../../utils/monthData";
 import MonthGrid from "./MonthGrid";
 
 type LunarInfoMap = Map<string, LunarDayInfo>;
+
+/** 计算月份项的精确高度 */
+function getMonthItemHeight(year: number, month: number, screenWidth: number): number {
+  const rowCount = getCalendarRowCount(year, month);
+  return calculateGridHeight(rowCount, screenWidth);
+}
 
 interface MonthListProps {
   data: MonthItem[];
@@ -58,8 +65,9 @@ const MonthList = memo(function MonthList({
     ({ item }: { item: MonthItem }) => {
       const lunarMap = getLunarMap(item.year, item.month);
       const eventsMap = getEventsMap(item.year, item.month);
+      const itemHeight = getMonthItemHeight(item.year, item.month, screenWidth);
       return (
-        <View style={{ width: screenWidth }}>
+        <View style={{ width: screenWidth, height: itemHeight }}>
           <MonthGrid
             year={item.year}
             month={item.month}
