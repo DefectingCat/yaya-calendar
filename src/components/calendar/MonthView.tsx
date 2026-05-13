@@ -265,8 +265,9 @@ export const MonthView: React.FC = () => {
     if (isCollapsed) return;
     const rowCount = getCalendarRowCount(displayMonth.getFullYear(), displayMonth.getMonth());
     const height = calculateGridHeight(rowCount, screenWidth);
+    console.log(`[MonthView] syncHeight displayMonth=${displayMonthStr} rowCount=${rowCount} height=${height.toFixed(1)}`);
     setVisibleMonthHeight(height);
-  }, [displayMonth, screenWidth, isCollapsed]);
+  }, [displayMonth, displayMonthStr, screenWidth, isCollapsed]);
 
   // 当 selectedDate 月份与 displayMonth 不同步时兜底同步
   const prevDisplayMonthRef = useRef(displayMonthStr);
@@ -504,7 +505,15 @@ export const MonthView: React.FC = () => {
 
       {/* 展开状态：FlashList 月份列表 */}
       {!isCollapsed && (
-        <View style={[styles.monthListContainer, { height: visibleMonthHeight }]}>
+        <View
+          style={[styles.monthListContainer, { height: visibleMonthHeight }]}
+          onLayout={(e) => {
+            const { height, width } = e.nativeEvent.layout;
+            console.log(
+              `[MonthView] container onLayout height=${height.toFixed(1)} width=${width.toFixed(1)} visibleMonthHeight=${visibleMonthHeight.toFixed(1)}`
+            );
+          }}
+        >
           <MonthList
             data={monthItems}
             initialMonthId={getMonthId(displayMonth.getFullYear(), displayMonth.getMonth())}
